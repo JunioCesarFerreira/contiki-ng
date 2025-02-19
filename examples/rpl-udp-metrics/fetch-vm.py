@@ -64,15 +64,15 @@ def fetch_file_without_blanks(
 
     
 # parmeters usage
-HOST = "localhost"       # If using NAT + port forwarding
-PORT = 2223                # SSH port or forwarded port (e.g., 22 if using Bridged)
-USERNAME = "root"        # VM user
-PASSWORD = "root"        # User's password
-REMOTE_PATH = "/opt/contiki-ng/tools/cooja"
+HOST = "172.26.96.1"       # If using NAT + port forwarding
+PORT = 2222                # SSH port or forwarded port (e.g., 22 if using Bridged)
+USERNAME = "ubuntu"        # VM user
+PASSWORD = "ubuntu"        # User's password
+REMOTE_PATH = "/home/ubuntu/Desktop/Simulations"
 
-REMOTE_FILES = ["/COOJA.testlog", "/sim.log"]
+REMOTE_FILES = ["/simulation.csc", "/positions.dat"]
 
-LOCAL_PATHS = ["./rpl-udp-metrics/cooja.log", "./rpl-udp-metrics/run.log"]
+LOCAL_PATHS = ["./simulation_from_vm.xml", "./positions_from_vm.dat"]
 
 for i in range(0, 2):
     fetch_file_without_blanks(HOST, PORT, USERNAME, PASSWORD, 

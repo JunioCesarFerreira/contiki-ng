@@ -2,8 +2,8 @@ import os
 import paramiko
 from scp import SCPClient
 
-local_directory = './rpl-udp-metrics'
-remote_directory = '/home/ubuntu/contiki-ng/tools/cooja'
+local_directory = '.'
+remote_directory = '/home/ubuntu/contiki-ng/tools/cooja' # Este diretório facilita na hora de usar no container
 vm_hostname = '172.26.96.1'
 vm_username = 'ubuntu'
 vm_password = 'ubuntu'  
@@ -20,6 +20,10 @@ def send_files_scp(client, local_path, remote_path):
     with SCPClient(client.get_transport()) as scp:
         for root, dirs, files in os.walk(local_path):
             for file in files:
+                if file.endswith(".ipynb") or file.endswith(".py") or file.endswith(".log"):
+                    continue
+                if root.endswith(".vscode"):
+                    continue
                 local_file_path = root + "/" + file
                 remote_file_path = remote_path + "/" + file
                 print(f"Sending {local_file_path} to {remote_file_path}")

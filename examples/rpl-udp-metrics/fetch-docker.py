@@ -1,6 +1,6 @@
 import paramiko
 
-def fetch_xml_file_without_blanks(
+def fetch_file_without_blanks(
     host: str,
     port: int,
     username: str,
@@ -64,16 +64,16 @@ def fetch_xml_file_without_blanks(
 
     
 # parmeters usage
-HOST = "172.26.96.1"       # If using NAT + port forwarding
-PORT = 2222                # SSH port or forwarded port (e.g., 22 if using Bridged)
-USERNAME = "ubuntu"        # VM user
-PASSWORD = "ubuntu"        # User's password
-REMOTE_PATH = "/home/ubuntu/Desktop/Simulations"
+HOST = "localhost"       # If using NAT + port forwarding
+PORT = 2223                # SSH port or forwarded port (e.g., 22 if using Bridged)
+USERNAME = "root"        # VM user
+PASSWORD = "root"        # User's password
+REMOTE_PATH = "/opt/contiki-ng/tools/cooja"
 
-REMOTE_FILES = ["/simulation.csc", "/positions.dat"]
+REMOTE_FILES = ["/COOJA.testlog", "/sim.log"]
 
-LOCAL_PATHS = ["./rpl-udp-metrics/simulation.xml", "./rpl-udp-metrics/positions.dat"]
+LOCAL_PATHS = ["./cooja.log", "./run.log"]
 
 for i in range(0, 2):
-    fetch_xml_file_without_blanks(HOST, PORT, USERNAME, PASSWORD, 
+    fetch_file_without_blanks(HOST, PORT, USERNAME, PASSWORD, 
                                   REMOTE_PATH+REMOTE_FILES[i], LOCAL_PATHS[i])

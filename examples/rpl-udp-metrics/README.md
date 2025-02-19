@@ -22,23 +22,23 @@ These applications use IPv6 over TSCH for communication and leverage the Energes
 
 - `udp-client.c`: Implementation of the UDP client.
 - `udp-server.c`: Implementation of the UDP server.
-- `send-files-to-vm.py`: Script to transfer source files to the virtual machine.
-- `fetch-files-from-vm.py`: Script to retrieve simulation XML (`.csc`) and node position files.
-- `send-files-to-container.py`: Script to transfer files to the Docker container.
-- `fetch-logs-from-container.py`: Script to retrieve simulation logs.
+- `send-vm.py`: Script to transfer source files to the virtual machine.
+- `fetch-vm.py`: Script to retrieve simulation XML (`.csc`) and node position files.
+- `send-docker.py`: Script to transfer files to the Docker container.
+- `fetch-docker.py`: Script to retrieve simulation logs.
 
 ## Usage Workflow
 
 ### Using a Virtual Machine
 1. Write or modify the C files in the working directory.
 2. Ensure the VM is running. [See](https://github.com/JunioCesarFerreira/Cooja-Docker-VM-Setup/blob/main/vm/prepare-vm-enviroment.md).
-3. Use `send-files-to-vm.py` to transfer the files to the VM.
+3. Use `send-vm.py` to transfer the files to the VM.
 4. Run Cooja GUI inside the VM to test the simulations.
-5. Use `fetch-files-from-vm.py` to retrieve simulation results (`.csc` and `Positions.dat`).
+5. Use `fetch-vm.py` to retrieve simulation results (`.csc` and `Positions.dat`).
 
 ### Using a Docker Container
 1. Ensure the container is running. [See](https://github.com/JunioCesarFerreira/Cooja-Docker-VM-Setup/tree/main/ssh-docker-cooja).
-2. Use `send-files-to-container.py` to transfer files to the container.
+2. Use `send-docker.py` to transfer files to the container.
 3. Connect to the container via SSH.
 4. Inside the container, rename the simulation file:
    ```sh
@@ -48,7 +48,10 @@ These applications use IPv6 over TSCH for communication and leverage the Energes
    ```sh
    java --enable-preview -Xms4g -Xmx4g -jar build/libs/cooja.jar --no-gui simulation.csc > sim.log
    ```
-6. Use `fetch-logs-from-container.py` to retrieve the simulation results.
+6. Use `fetch-docker.py` to retrieve the simulation results.
+
+### Using Positions Management
+The [notebook](positions-mngmt.ipynb) provides tools to generate and visualize node positions for simulations and to create `positions.dat` and `simulation.xml` files for configuring simulation environments. Even with some simple mobility. 
 
 ## Dependencies
 
