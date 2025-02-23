@@ -74,6 +74,5 @@ REMOTE_FILES = ["/COOJA.testlog", "/sim.log"]
 
 LOCAL_PATHS = ["./cooja.log", "./run.log"]
 
-for i in range(0, 2):
-    fetch_file_without_blanks(HOST, PORT, USERNAME, PASSWORD, 
-                                  REMOTE_PATH+REMOTE_FILES[i], LOCAL_PATHS[i])
+for remote, local in zip(REMOTE_FILES, LOCAL_PATHS):
+    fetch_file_without_blanks(HOST, PORT, USERNAME, PASSWORD, REMOTE_PATH+remote, local)

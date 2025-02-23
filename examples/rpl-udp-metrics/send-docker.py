@@ -1,13 +1,5 @@
-import os
 import paramiko
 from scp import SCPClient
-
-local_directory = '.'
-remote_directory = '/opt/contiki-ng/tools/cooja'
-container_hostname = 'localhost'
-container_username = 'root'
-container_password = 'root'  
-container_port = 2223
 
 def create_ssh_client(hostname, port, username, password):
     client = paramiko.SSHClient()
@@ -16,21 +8,42 @@ def create_ssh_client(hostname, port, username, password):
     client.connect(hostname, port=port, username=username, password=password)
     return client
 
-def send_files_scp(client, local_path, remote_path):
+def send_files_scp(client, local_path, remote_path, source_files, target_files):
+    if len(source_files) != len(target_files):
+        print("The number of source files is not equal number of targets.")
+        return
     with SCPClient(client.get_transport()) as scp:
-        for root, dirs, files in os.walk(local_path):
-            for file in files:
-                if file.endswith(".ipynb") or file.endswith(".py") or file.endswith(".log"):
-                    continue
-                if root.endswith(".vscode"):
-                    continue
-                local_file_path = root + "/" + file
-                remote_file_path = remote_path + "/" + file
-                print(f"Sending {local_file_path} to {remote_file_path}")
-                scp.put(local_file_path, remote_file_path)
+        for src, dest in zip(source_files, target_files):
+            local_file_path = local_path + "/" + src
+            remote_file_path = remote_path + "/" + dest
+            print(f"Sending {local_file_path} to {remote_file_path}")
+            scp.put(local_file_path, remote_file_path)  
 
-if __name__ == "__main__":
-    ssh = create_ssh_client(container_hostname, container_port, container_username, container_password)
-    send_files_scp(ssh, local_directory, remote_directory)
-    ssh.close()
-    print("Transfer completed.")
+# I chose to use fixed '/' instead of `os.path.join` because destiny is linux.
+LOCAL_DIRECTORY = '.'
+REMOTE_DIRECTORY = '/opt/contiki-ng/tools/cooja'
+CONTAINER_HOSTNAME = 'localhost'
+CONTAINER_USERNAME = 'root'
+CONTAINER_PASSWORD = 'root'  
+CONTAINER_PORT = 2223
+
+LOCAL_FILES = [
+    "simulation.xml", 
+    "positions.dat",
+    "Makefile", 
+    "project-conf.h",
+    "udp-client.c", 
+    "udp-server.c"]
+
+REMOTE_FILES = [
+    "simulation.csc", 
+    "positions.dat",
+    "Makefile", 
+    "project-conf.h",
+    "udp-client.c", 
+    "udp-server.c"]
+
+ssh = create_ssh_client(CONTAINER_HOSTNAME, CONTAINER_PORT, CONTAINER_USERNAME, CONTAINER_PASSWORD)
+send_files_scp(ssh, LOCAL_DIRECTORY, REMOTE_DIRECTORY, LOCAL_FILES, REMOTE_FILES)
+ssh.close()
+print("Transfer completed.")
