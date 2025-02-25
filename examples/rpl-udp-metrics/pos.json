@@ -1,0 +1,49 @@
+{
+	"fixedMotes": [
+		{
+			"position": [0, 0],
+			"name": "server",
+			"sourceCode": "rpl-udp-server.c"
+		},
+		{
+			"position": [25, 25],
+			"name": "client1",
+			"sourceCode": "rpl-udp-client.c"
+		},
+		{
+			"position": [-25, 25],
+			"name": "client2",
+			"sourceCode": "rpl-udp-client.c"
+		},
+		{
+			"position": [25, -25],
+			"name": "client3",
+			"sourceCode": "rpl-udp-client.c"
+		},
+		{
+			"position": [-25, -25],
+			"name": "client4",
+			"sourceCode": "rpl-udp-client.c"
+		}
+	],
+	"mobileMotes": [
+		{
+			"functionPath": ["25 * np.cos(2 * np.pi * t)", "25 * np.sin(2 * np.pi * t)"],
+			"isClosed": true,
+			"isRoundTrip": false,
+			"speed": 5,
+			"timeStep": 1,
+			"name": "client5",
+			"sourceCode": "rpl-udp-client.c"
+		},
+		{
+			"functionPath": ["100 * t - 50", "50"],
+			"isClosed": false,
+			"isRoundTrip": true,
+			"speed": 3,
+			"timeStep": 2,
+			"name": "client6",
+			"sourceCode": "rpl-udp-client.c"
+		}
+	]
+}
