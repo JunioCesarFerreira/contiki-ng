@@ -3,6 +3,7 @@
 #include "net/netstack.h"
 #include "net/ipv6/simple-udp.h"
 #include "net/ipv6/uiplib.h"
+#include "net/mac/tsch/tsch.h"
 #include <stdio.h>
 
 #include "metrics_packet.h"
@@ -16,34 +17,23 @@ static struct simple_udp_connection udp_conn;
 typedef struct {
     uip_ipaddr_t addr;
     unsigned int count;
-    int used;
+    char used;
 } mote_counter_t;
 
 static mote_counter_t mote_counters[MAX_MOTES];
 
 static int compare_ipaddr(const uip_ipaddr_t *a, const uip_ipaddr_t *b) {
     return memcmp(a, b, sizeof(uip_ipaddr_t));
-  }
+}
 
-static void udp_rx_callback(struct simple_udp_connection *c,
-                            const uip_ipaddr_t *sender_addr,
-                            uint16_t sender_port,
-                            const uip_ipaddr_t *receiver_addr,
-                            uint16_t receiver_port,
-                            const uint8_t *data,
-                            uint16_t datalen) 
-{
-    // Converte o endereço IPv6 para string
-    char addr_str[UIPLIB_IPV6_MAX_STR_LEN];
-    uiplib_ipaddr_snprint(addr_str, sizeof(addr_str), sender_addr);
-
+static unsigned int handle_mote_counters(const uip_ipaddr_t *sender_addr) {
     /* Procura na lista se o mote já possui um contador.
     Se não encontrar, aloca um novo slot. */
     int found = 0;
     unsigned int received_count = 1;
-    for(int i = 0; i < MAX_MOTES; i++) {
-        if(mote_counters[i].used) {
-            if(compare_ipaddr(sender_addr, &mote_counters[i].addr) == 0) {
+    for (int i = 0; i < MAX_MOTES; i++) {
+        if (mote_counters[i].used) {
+            if (compare_ipaddr(sender_addr, &mote_counters[i].addr) == 0) {
                 mote_counters[i].count++;
                 received_count = mote_counters[i].count;
                 found = 1;
@@ -58,25 +48,47 @@ static void udp_rx_callback(struct simple_udp_connection *c,
             break;
         }
     }
-    if(!found) {
+    if (!found) {
         printf("No space for mote counter!\n");
     }
+    return received_count;
+}
+
+static void udp_rx_callback(struct simple_udp_connection *c,
+                            const uip_ipaddr_t *sender_addr,
+                            uint16_t sender_port,
+                            const uip_ipaddr_t *receiver_addr,
+                            uint16_t receiver_port,
+                            const uint8_t *data,
+                            uint16_t datalen) 
+{
+    uint32_t timestamp = tsch_get_network_uptime_ticks();
+    // Converte o endereço IPv6 para string
+    char addr_str[UIPLIB_IPV6_MAX_STR_LEN];
+    uiplib_ipaddr_snprint(addr_str, sizeof(addr_str), sender_addr);
 
     printf("UDP Packet received from %s\n", addr_str);
-    
-    if (datalen == sizeof(metrics_packet_t)) {
-        metrics_packet_t *metrics = (metrics_packet_t *)data;
+
+    uint32_t received_count = handle_mote_counters(sender_addr);
+
+    if (datalen == sizeof(node_metrics_packet_t)) {
+        node_metrics_packet_t *metrics = (node_metrics_packet_t *)data;
 
         printf("Node metrics received from %s\n", addr_str);
         printf("  CPU Energy: %u mJ\n", metrics->cpu_energy_mJ);
         printf("  LPM Energy: %u mJ\n", metrics->lpm_energy_mJ);
         printf("  Radio TX Energy: %u mJ\n", metrics->radio_tx_energy_mJ);
         printf("  Radio RX Energy: %u mJ\n", metrics->radio_rx_energy_mJ);
-        printf("  Latency: %lu ms\n", metrics->latency_ms);
-        printf("  Total Sent: %u\n", metrics->total_sent);
-        printf("  Total Received: %d\n", received_count);
-        printf("  Response Time: %lu ms\n", metrics->response_time_ms);
-        printf("  Transfer Rate: %u packets/sec\n", metrics->transfer_rate);
+        printf("  Node Time: %lu ms\n", metrics->current_time);
+        printf("  Node Total Sent: %u\n", metrics->total_sent);
+        printf("  Node Total Received: %u\n", metrics->total_received);
+        printf("  Node Bytes TX: %u\n", metrics->bytes_tx);
+        printf("  Node Bytes RX: %u\n", metrics->bytes_rx);
+        printf("  Server Received: %d\n", received_count);
+        printf("  Server Bytes RX: %d\n", datalen);
+        printf("  Latency: %lu ms\n", (long unsigned int)(timestamp - metrics->current_time));
+    } else {
+        printf("Received bytes %d\n", datalen);
     }
 }
 

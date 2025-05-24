@@ -26,6 +26,7 @@ static struct simple_udp_connection udp_conn;   // Conexão UDP
 static uint64_t last_tx_timestamp = 0;
 static uint32_t total_sent = 0, total_received = 0;
 
+
 static void print_own_link_local(void) {
     uip_ds6_addr_t *ll_addr = uip_ds6_get_link_local(ADDR_PREFERRED);
     if(ll_addr != NULL) {
@@ -37,9 +38,11 @@ static void print_own_link_local(void) {
     }
   }
 
+
 static float to_seconds(uint64_t time) {
     return (float)time / ENERGEST_SECOND;
 }
+
 
 static void calculate_metrics(metrics_packet_t *metrics) {
     // Cálculo da energia com consumo específico de cada modo (mW)    
@@ -71,6 +74,7 @@ static void calculate_metrics(metrics_packet_t *metrics) {
     metrics->transfer_rate = total_sent / (current_time / CLOCK_SECOND);
 }
 
+
 static void udp_rx_callback(struct simple_udp_connection *c,
                             const uip_ipaddr_t *sender_addr,
                             uint16_t sender_port,
@@ -86,6 +90,7 @@ static void udp_rx_callback(struct simple_udp_connection *c,
     total_received++;
     last_tx_timestamp = tsch_get_network_uptime_ticks();
 }
+
 
 /*------------------------Processos do Contiki-NG------------------------*/
 PROCESS(udp_client_process, "UDP client");
