@@ -69,15 +69,16 @@ MEMB(conns, struct httpd_state, CONNS);
 #define ISO_period  0x2e
 #define ISO_slash   0x2f
 
-/*---------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------------------------------------*/
 static const char *NOT_FOUND = "<html><body bgcolor=\"white\">"
 "<center>"
 "<h1>404 - file not found</h1>"
 "</center>"
 "</body>"
 "</html>";
-/*---------------------------------------------------------------------------*/
-static PT_THREAD(send_string(struct httpd_state *s, const char *str))
+/*------------------------------------------------------------------------------------------------------*/
+static
+PT_THREAD(send_string(struct httpd_state *s, const char *str))
 {
   PSOCK_BEGIN(&s->sout);
 
@@ -85,10 +86,15 @@ static PT_THREAD(send_string(struct httpd_state *s, const char *str))
 
   PSOCK_END(&s->sout);
 }
-/*---------------------------------------------------------------------------*/
-const char http_content_type_html[] = "Content-type: text/html\r\n\r\n";
+/*------------------------------------------------------------------------------------------------------*/
 
-static PT_THREAD(send_headers(struct httpd_state *s, const char *statushdr))
+/* comentado por mim
+const char http_content_type_html[] = "Content-type: text/html\r\n\r\n";*/
+
+const char http_content_type_json[] = "Content-type: application/json\r\n\r\n";
+
+static
+PT_THREAD(send_headers(struct httpd_state *s, const char *statushdr))
 {
   /* char *ptr; */
 
@@ -113,14 +119,25 @@ static PT_THREAD(send_headers(struct httpd_state *s, const char *statushdr))
   /*   s->ptr = http_content_type_binary; */
   /* } */
   /* SEND_STRING(&s->sout, s->ptr); */
-  SEND_STRING(&s->sout, http_content_type_html);
+  
+    /* comentado por mim
+  SEND_STRING(&s->sout, http_content_type_html);*/
+
+  SEND_STRING(&s->sout, http_content_type_json);  
+  
   PSOCK_END(&s->sout);
 }
-/*---------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------------------------------------*/
 const char http_header_200[] = "HTTP/1.0 200 OK\r\nServer: Contiki/2.4 http://www.sics.se/contiki/\r\nConnection: close\r\n";
 const char http_header_404[] = "HTTP/1.0 404 Not found\r\nServer: Contiki/2.4 http://www.sics.se/contiki/\r\nConnection: close\r\n";
-static PT_THREAD(handle_output(struct httpd_state *s))
+static
+PT_THREAD(handle_output(struct httpd_state *s))
 {
+    if( s == NULL)  {
+       fprintf(stderr, "s == NULL\n");
+       return;
+    }
+  
   PT_BEGIN(&s->outputpt);
 
   s->script = NULL;
@@ -137,14 +154,14 @@ static PT_THREAD(handle_output(struct httpd_state *s))
     PT_EXIT(&s->outputpt);
   } else {
     PT_WAIT_THREAD(&s->outputpt,
-                   send_headers(s, http_header_200));
+                  send_headers(s, http_header_200));
     PT_WAIT_THREAD(&s->outputpt, s->script(s));
   }
   s->script = NULL;
   PSOCK_CLOSE(&s->sout);
   PT_END(&s->outputpt);
 }
-/*---------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------------------------------------*/
 const char http_get[] = "GET ";
 const char http_index_html[] = "/index.html";
 
@@ -173,8 +190,7 @@ PT_THREAD(handle_input(struct httpd_state *s))
     s->filename[sizeof(s->filename) - 1] = '\0';
   } else {
     s->inputbuf[PSOCK_DATALEN(&s->sin) - 1] = 0;
-    strncpy(s->filename, s->inputbuf, sizeof(s->filename) - 1);
-    s->filename[sizeof(s->filename) - 1] = '\0';
+    strncpy(s->filename, s->inputbuf, sizeof(s->filename));
   }
 #endif /* URLCONV */
 
@@ -194,16 +210,18 @@ PT_THREAD(handle_input(struct httpd_state *s))
 
   PSOCK_END(&s->sin);
 }
-/*---------------------------------------------------------------------------*/
-static void handle_connection(struct httpd_state *s)
+/*------------------------------------------------------------------------------------------------------*/
+static void
+handle_connection(struct httpd_state *s)
 {
   handle_input(s);
   if(s->state == STATE_OUTPUT) {
     handle_output(s);
   }
 }
-/*---------------------------------------------------------------------------*/
-void httpd_appcall(void *state)
+/*------------------------------------------------------------------------------------------------------*/
+void
+httpd_appcall(void *state)
 {
   struct httpd_state *s = (struct httpd_state *)state;
 
@@ -243,8 +261,9 @@ void httpd_appcall(void *state)
     uip_abort();
   }
 }
-/*---------------------------------------------------------------------------*/
-void httpd_init(void)
+/*------------------------------------------------------------------------------------------------------*/
+void
+httpd_init(void)
 {
 
   tcp_listen(UIP_HTONS(80));
@@ -253,4 +272,4 @@ void httpd_init(void)
   urlconv_init();
 #endif /* URLCONV */
 }
-/*---------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------------------------------------*/
