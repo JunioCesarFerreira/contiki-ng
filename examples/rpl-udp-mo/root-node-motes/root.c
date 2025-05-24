@@ -6,17 +6,22 @@
 #include "net/mac/tsch/tsch.h"
 #include <stdio.h>
 
-#include "metrics_packet.h"
+#include "metrics-packet.h"
 
 #define UDP_CLIENT_PORT 8765
 #define UDP_SERVER_PORT 5678
 #define MAX_MOTES 10
+#define SEND_INTERVAL (10 * CLOCK_SECOND)
+
+static struct etimer periodic_timer;
+static server_packet_t pkt = { 0, 0 };
 
 static struct simple_udp_connection udp_conn;
 
 typedef struct {
     uip_ipaddr_t addr;
-    unsigned int count;
+    unsigned int rx_count;
+    unsigned int tx_count;
     char used;
 } mote_counter_t;
 
@@ -26,32 +31,47 @@ static int compare_ipaddr(const uip_ipaddr_t *a, const uip_ipaddr_t *b) {
     return memcmp(a, b, sizeof(uip_ipaddr_t));
 }
 
-static unsigned int handle_mote_counters(const uip_ipaddr_t *sender_addr) {
+static mote_counter_t* rx_handle_mote_counters(const uip_ipaddr_t *sender_addr) {
     /* Procura na lista se o mote já possui um contador.
     Se não encontrar, aloca um novo slot. */
     int found = 0;
-    unsigned int received_count = 1;
+    mote_counter_t* ptr = NULL;
     for (int i = 0; i < MAX_MOTES; i++) {
         if (mote_counters[i].used) {
             if (compare_ipaddr(sender_addr, &mote_counters[i].addr) == 0) {
-                mote_counters[i].count++;
-                received_count = mote_counters[i].count;
+                mote_counters[i].rx_count++;
                 found = 1;
+                ptr = &mote_counters[i];
                 break;
             }
         } else {
             /* Novo mote: copia o endereço e inicializa o contador */
             memcpy(&mote_counters[i].addr, sender_addr, sizeof(uip_ipaddr_t));
-            mote_counters[i].count = 1;
+            mote_counters[i].rx_count = 1;
+            mote_counters[i].tx_count = 0;
             mote_counters[i].used = 1;
             found = 1;
+            ptr = &mote_counters[i];
             break;
         }
     }
     if (!found) {
         printf("No space for mote counter!\n");
     }
-    return received_count;
+    return ptr;
+}
+
+static void send_packets_to_all_nodes(void) {
+    pkt.seq++; // incrementa o número de sequência
+    pkt.time = tsch_get_network_uptime_ticks();
+
+    for (int i = 0; i < MAX_MOTES; i++) {
+        if (mote_counters[i].used) {
+            mote_counters[i].tx_count++;
+            simple_udp_sendto(&udp_conn, &pkt, sizeof(pkt), &mote_counters[i].addr);
+            printf("Enviado pacote seq=%u para mote %d\n", pkt.seq, i);
+        }
+    }
 }
 
 static void udp_rx_callback(struct simple_udp_connection *c,
@@ -69,7 +89,7 @@ static void udp_rx_callback(struct simple_udp_connection *c,
 
     printf("UDP Packet received from %s\n", addr_str);
 
-    uint32_t received_count = handle_mote_counters(sender_addr);
+    mote_counter_t* scp_mote = rx_handle_mote_counters(sender_addr);
 
     if (datalen == sizeof(node_metrics_packet_t)) {
         node_metrics_packet_t *metrics = (node_metrics_packet_t *)data;
@@ -84,9 +104,11 @@ static void udp_rx_callback(struct simple_udp_connection *c,
         printf("  Node Total Received: %u\n", metrics->total_received);
         printf("  Node Bytes TX: %u\n", metrics->bytes_tx);
         printf("  Node Bytes RX: %u\n", metrics->bytes_rx);
-        printf("  Server Received: %d\n", received_count);
+        printf("  R2N Latency: %lu ms\n", metrics->from_root_to_node_latency);
+        printf("  Server Sent: %d\n", scp_mote->tx_count);
+        printf("  Server Received: %d\n", scp_mote->rx_count);
         printf("  Server Bytes RX: %d\n", datalen);
-        printf("  Latency: %lu ms\n", (long unsigned int)(timestamp - metrics->current_time));
+        printf("  N2R Latency: %lu ms\n", (long unsigned int)(timestamp - metrics->current_time));
     } else {
         printf("Received bytes %d\n", datalen);
     }
@@ -102,6 +124,14 @@ PROCESS_THREAD(udp_server_process, ev, data) {
 
     NETSTACK_ROUTING.root_start();
     simple_udp_register(&udp_conn, UDP_SERVER_PORT, NULL, UDP_CLIENT_PORT, udp_rx_callback);
+
+    etimer_set(&periodic_timer, SEND_INTERVAL);
+
+    while(1) {
+        PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
+        send_packets_to_all_nodes();
+        etimer_reset(&periodic_timer);
+    }
 
     PROCESS_END();
 }

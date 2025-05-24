@@ -8,7 +8,7 @@
 #include "net/mac/tsch/tsch.h"
 #include "sys/energest.h"
 
-#include "metrics_packet.h"
+#include "metrics-packet.h"
 
 #define UDP_CLIENT_PORT   8765
 #define UDP_SERVER_PORT   5678
@@ -21,7 +21,7 @@
 
 /* Variáveis Globais */
 static struct simple_udp_connection udp_conn;   // Conexão UDP
-static uint64_t last_rx_timestamp = 0;
+static uint64_t root_to_node_latency = 0;
 static uint32_t total_sent = 0, total_received = 0;
 static uint16_t bytes_tx = 0, bytes_rx = 0;
 
@@ -55,6 +55,7 @@ static void print_metrics(node_metrics_packet_t *metrics) {
     printf("    total_received=%d\n", metrics->total_received);
     printf("    bytes_tx=%d\n", metrics->bytes_tx);
     printf("    bytes_rx=%d\n", metrics->bytes_rx);
+    printf("    from_root_to_node_latency=%lu\n", metrics->from_root_to_node_latency);
 }
 
 static void fill_node_metrics_packet(node_metrics_packet_t *metrics) {
@@ -81,6 +82,7 @@ static void fill_node_metrics_packet(node_metrics_packet_t *metrics) {
 
     metrics->packet_number = total_sent-1;
     metrics->current_time = tsch_get_network_uptime_ticks();
+    metrics->from_root_to_node_latency = root_to_node_latency;
 }
 
 static void udp_rx_callback(struct simple_udp_connection *c,
@@ -99,7 +101,14 @@ static void udp_rx_callback(struct simple_udp_connection *c,
     printf("Received bytes = %d\n", datalen);
     total_received++;
     bytes_rx = datalen;
-    last_rx_timestamp = tsch_get_network_uptime_ticks();
+    uint64_t current_time = tsch_get_network_uptime_ticks();
+    
+    if (datalen == sizeof(server_packet_t)) {
+        server_packet_t *server_pkt = (server_packet_t *)data;
+        root_to_node_latency = current_time - server_pkt->time;
+    } else {
+        printf("Received bytes %d\n", datalen);
+    }
 }
 
 /*------------------------Processos do Contiki-NG------------------------*/
