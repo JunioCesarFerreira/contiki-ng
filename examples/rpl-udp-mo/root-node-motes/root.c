@@ -10,7 +10,7 @@
 
 #define UDP_CLIENT_PORT 8765
 #define UDP_SERVER_PORT 5678
-#define MAX_MOTES 10
+#define MAX_MOTES 100
 #define SEND_INTERVAL (10 * CLOCK_SECOND)
 
 static struct etimer periodic_timer;
@@ -69,10 +69,11 @@ static void send_packets_to_all_nodes(void) {
         if (mote_counters[i].used) {
             mote_counters[i].tx_count++;
             simple_udp_sendto(&udp_conn, &pkt, sizeof(pkt), &mote_counters[i].addr);
-            printf("Enviado pacote seq=%u para mote %d\n", pkt.seq, i);
+            printf("Sending packet seq=%u for mote %d\n", pkt.seq, i);
         }
     }
 }
+
 
 static void udp_rx_callback(struct simple_udp_connection *c,
                             const uip_ipaddr_t *sender_addr,
@@ -95,24 +96,25 @@ static void udp_rx_callback(struct simple_udp_connection *c,
         node_metrics_packet_t *metrics = (node_metrics_packet_t *)data;
 
         printf("Node metrics received from %s\n", addr_str);
-        printf("  CPU Energy: %u mJ\n", metrics->cpu_energy_mJ);
-        printf("  LPM Energy: %u mJ\n", metrics->lpm_energy_mJ);
-        printf("  Radio TX Energy: %u mJ\n", metrics->radio_tx_energy_mJ);
-        printf("  Radio RX Energy: %u mJ\n", metrics->radio_rx_energy_mJ);
-        printf("  Node Time: %lu ms\n", metrics->current_time);
-        printf("  Node Total Sent: %u\n", metrics->total_sent);
-        printf("  Node Total Received: %u\n", metrics->total_received);
-        printf("  Node Bytes TX: %u\n", metrics->bytes_tx);
-        printf("  Node Bytes RX: %u\n", metrics->bytes_rx);
-        printf("  R2N Latency: %lu ms\n", metrics->from_root_to_node_latency);
-        printf("  Server Sent: %d\n", scp_mote->tx_count);
-        printf("  Server Received: %d\n", scp_mote->rx_count);
-        printf("  Server Bytes RX: %d\n", datalen);
-        printf("  N2R Latency: %lu ms\n", (long unsigned int)(timestamp - metrics->current_time));
+        printf("    CPU Energy:          %u mJ\n", metrics->cpu_energy_mJ);
+        printf("    LPM Energy:          %u mJ\n", metrics->lpm_energy_mJ);
+        printf("    Radio TX Energy:     %u mJ\n", metrics->radio_tx_energy_mJ);
+        printf("    Radio RX Energy:     %u mJ\n", metrics->radio_rx_energy_mJ);
+        printf("    Node Time:           %lu ms\n", metrics->current_time);
+        printf("    Node Total Sent:     %u\n", metrics->total_sent);
+        printf("    Node Total Received: %u\n", metrics->total_received);
+        printf("    Node Bytes TX:       %u\n", metrics->bytes_tx);
+        printf("    Node Bytes RX:       %u\n", metrics->bytes_rx);
+        printf("    R2N Latency:         %lu ms\n", metrics->from_root_to_node_latency);
+        printf("    Server Sent:         %d\n", scp_mote->tx_count);
+        printf("    Server Received:     %d\n", scp_mote->rx_count);
+        printf("    Server Bytes RX:     %d\n", datalen);
+        printf("    N2R Latency:         %lu ms\n", (long unsigned int)(timestamp - metrics->current_time));
     } else {
         printf("Received bytes %d\n", datalen);
     }
 }
+
 
 PROCESS(udp_server_process, "UDP server");
 AUTOSTART_PROCESSES(&udp_server_process);

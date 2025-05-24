@@ -1,12 +1,12 @@
 #include "contiki.h"
 #include "net/routing/routing.h"
-#include "random.h"
 #include "net/netstack.h"
 #include "net/ipv6/simple-udp.h"
 #include "net/ipv6/uip-ds6.h"
 #include "net/ipv6/uiplib.h"
 #include "net/mac/tsch/tsch.h"
 #include "sys/energest.h"
+#include "random.h"
 
 #include "metrics-packet.h"
 
@@ -18,6 +18,10 @@
 #define RADIO_TX_POWER    17.4                // Consumo de energia no rádio (TX) (mW)
 #define RADIO_RX_POWER    19.7                // Consumo de energia no rádio (RX) (mW)
 
+/* DEBUG DEFINES */
+//#define DEBUG_ENERGY_TIME_IN_SECONDS
+//#define DEBUG_PRINT_METRICS_PACKET
+//#define DEBUG_RX_CALLBACK
 
 /* Variáveis Globais */
 static struct simple_udp_connection udp_conn;   // Conexão UDP
@@ -26,9 +30,13 @@ static uint32_t total_sent = 0, total_received = 0;
 static uint16_t bytes_tx = 0, bytes_rx = 0;
 
 /* Funções auxiliares */
+static float to_seconds(uint64_t time) {
+    return (float)time / ENERGEST_SECOND;
+}
+
 static void print_own_link_local(void) {
     uip_ds6_addr_t *ll_addr = uip_ds6_get_link_local(ADDR_PREFERRED);
-    if(ll_addr != NULL) {
+    if (ll_addr != NULL) {
       char addr_str[UIPLIB_IPV6_MAX_STR_LEN];
       uiplib_ipaddr_snprint(addr_str, sizeof(addr_str), &ll_addr->ipaddr);
       printf("My addr link-local IPv6: %s\n", addr_str);
@@ -37,10 +45,7 @@ static void print_own_link_local(void) {
     }
 }
 
-static float to_seconds(uint64_t time) {
-    return (float)time / ENERGEST_SECOND;
-}
-
+#ifdef DEBUG_PRINT_METRICS_PACKET
 static void print_metrics(node_metrics_packet_t *metrics) {
     printf("Packet:\n");
     printf("    number: %d\n", metrics->packet_number);
@@ -57,6 +62,7 @@ static void print_metrics(node_metrics_packet_t *metrics) {
     printf("    bytes_rx=%d\n", metrics->bytes_rx);
     printf("    from_root_to_node_latency=%lu\n", metrics->from_root_to_node_latency);
 }
+#endif // DEBUG_PRINT_METRICS_PACKET
 
 static void fill_node_metrics_packet(node_metrics_packet_t *metrics) {
     // Cálculo da energia com consumo específico de cada modo (mW)    
@@ -93,12 +99,13 @@ static void udp_rx_callback(struct simple_udp_connection *c,
                             const uint8_t *data,
                             uint16_t datalen) 
 {
+#ifdef DEBUG_RX_CALLBACK
     // Converte o endereço IPv6 para string
     char addr_str[UIPLIB_IPV6_MAX_STR_LEN];
     uiplib_ipaddr_snprint(addr_str, sizeof(addr_str), sender_addr);
-    printf("[udp_rx_callback]\n");
     printf("UDP RX Sender = %s\n", addr_str);
     printf("Received bytes = %d\n", datalen);
+#endif // DEBUG_RX_CALLBACK
     total_received++;
     bytes_rx = datalen;
     uint64_t current_time = tsch_get_network_uptime_ticks();
@@ -106,8 +113,6 @@ static void udp_rx_callback(struct simple_udp_connection *c,
     if (datalen == sizeof(server_packet_t)) {
         server_packet_t *server_pkt = (server_packet_t *)data;
         root_to_node_latency = current_time - server_pkt->time;
-    } else {
-        printf("Received bytes %d\n", datalen);
     }
 }
 
@@ -124,7 +129,7 @@ PROCESS_THREAD(udp_client_process, ev, data) {
     PROCESS_BEGIN();
     
     simple_udp_register(&udp_conn, UDP_CLIENT_PORT, NULL, UDP_SERVER_PORT, udp_rx_callback);
-    etimer_set(&periodic_timer, random_rand() % SEND_INTERVAL);
+    etimer_set(&periodic_timer, SEND_INTERVAL);
     NETSTACK_MAC.on();
 
     while(1) {
@@ -137,7 +142,9 @@ PROCESS_THREAD(udp_client_process, ev, data) {
             fill_node_metrics_packet(&metrics);
             simple_udp_sendto(&udp_conn, &metrics, bytes_tx, &dest_ipaddr);
             print_own_link_local();
+#ifdef DEBUG_PRINT_METRICS_PACKET
             print_metrics(&metrics);
+#endif // DEBUG_ENERGY_TIME_IN_SECONDS
         } else {
             printf("Not reachable yet\n");
         }
