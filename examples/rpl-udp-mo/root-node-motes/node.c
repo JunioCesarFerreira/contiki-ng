@@ -123,9 +123,11 @@ static void udp_rx_callback(struct simple_udp_connection *c,
 
     uint64_t current_time = tsch_get_network_uptime_ticks();
     
-    if (datalen == sizeof(server_packet_t)) {
-        server_packet_t *server_pkt = (server_packet_t *)data;
-        root_to_node_latency = current_time - server_pkt->time;
+    if (datalen == sizeof(ping_packet_t)) {
+        ping_packet_t *pkt = (ping_packet_t *)data;
+        root_to_node_latency = current_time - pkt->send_timestamp;
+        // Pong: Ecoa o pacote
+        simple_udp_sendto(&udp_conn, pkt, sizeof(ping_packet_t), sender_addr);
     }
 }
 
@@ -151,7 +153,7 @@ PROCESS_THREAD(udp_client_process, ev, data) {
         if (NETSTACK_ROUTING.node_is_reachable() && NETSTACK_ROUTING.get_root_ipaddr(&dest_ipaddr)) {
             total_sent++;
             bytes_tx = sizeof(metrics);
-            
+
             energest_flush();
 
             fill_node_metrics_packet(&metrics);

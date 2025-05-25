@@ -13,45 +13,56 @@
 #define MAX_MOTES 100
 #define SEND_INTERVAL (10 * CLOCK_SECOND)
 
+/* 
+ * Sobre a definição default TLL: 
+ * Em redes 6LoWPAN valores tipicos de 30 a 64. O valor limite costuma ser 255. 
+ * O valor padrão mais comum em redes RPL/IPv6 é 64.
+ */
+#define DEFAULT_TTL_HOP_COUNTER 64 
+
 static struct etimer periodic_timer;
-static server_packet_t pkt = { 0, 0 };
+static ping_packet_t ping_pkt = { 0, 0 };
 
 static struct simple_udp_connection udp_conn;
 
 typedef struct {
     uip_ipaddr_t addr;
-    unsigned int rx_count;
-    unsigned int tx_count;
+    uint32_t rx_count;
+    uint32_t tx_count;
+    uint32_t latency; 
+    uint16_t index;
     char used;
-} mote_counter_t;
+} mote_info_t;
 
-static mote_counter_t mote_counters[MAX_MOTES];
+static mote_info_t motes[MAX_MOTES];
 
 static int compare_ipaddr(const uip_ipaddr_t *a, const uip_ipaddr_t *b) {
     return memcmp(a, b, sizeof(uip_ipaddr_t));
 }
 
-static mote_counter_t* rx_handle_mote_counters(const uip_ipaddr_t *sender_addr) {
+static mote_info_t* rx_handle_mote_counters(const uip_ipaddr_t *sender_addr) {
     /* Procura na lista se o mote já possui um contador.
     Se não encontrar, aloca um novo slot. */
-    int found = 0;
-    mote_counter_t* ptr = NULL;
+    uint8_t found = 0;
+    mote_info_t* ptr = NULL;
     for (int i = 0; i < MAX_MOTES; i++) {
-        if (mote_counters[i].used) {
-            if (compare_ipaddr(sender_addr, &mote_counters[i].addr) == 0) {
-                mote_counters[i].rx_count++;
+        if (motes[i].used) {
+            if (compare_ipaddr(sender_addr, &motes[i].addr) == 0) {
+                motes[i].rx_count++;
+                motes[i].index = i;
                 found = 1;
-                ptr = &mote_counters[i];
+                ptr = &motes[i];
                 break;
             }
         } else {
             /* Novo mote: copia o endereço e inicializa o contador */
-            memcpy(&mote_counters[i].addr, sender_addr, sizeof(uip_ipaddr_t));
-            mote_counters[i].rx_count = 1;
-            mote_counters[i].tx_count = 0;
-            mote_counters[i].used = 1;
+            memcpy(&motes[i].addr, sender_addr, sizeof(uip_ipaddr_t));
+            motes[i].rx_count = 1;
+            motes[i].tx_count = 0;
+            motes[i].used = 1;
+            motes[i].index = i;
             found = 1;
-            ptr = &mote_counters[i];
+            ptr = &motes[i];
             break;
         }
     }
@@ -61,15 +72,15 @@ static mote_counter_t* rx_handle_mote_counters(const uip_ipaddr_t *sender_addr) 
     return ptr;
 }
 
-static void send_packets_to_all_nodes(void) {
-    pkt.seq++; // incrementa o número de sequência
-    pkt.time = tsch_get_network_uptime_ticks();
+static void send_ping_to_all_nodes(void) {
+    ping_pkt.ping_seq++; // incrementa o número de sequência
+    ping_pkt.send_timestamp = tsch_get_network_uptime_ticks();
 
     for (int i = 0; i < MAX_MOTES; i++) {
-        if (mote_counters[i].used) {
-            mote_counters[i].tx_count++;
-            simple_udp_sendto(&udp_conn, &pkt, sizeof(pkt), &mote_counters[i].addr);
-            printf("Sending packet seq=%u for mote %d\n", pkt.seq, i);
+        if (motes[i].used) {
+            motes[i].tx_count++;
+            simple_udp_sendto(&udp_conn, &ping_pkt, sizeof(ping_pkt), &motes[i].addr);
+            printf("Sending ping packet seq=%u for mote %d\n", ping_pkt.ping_seq, i);
         }
     }
 }
@@ -83,16 +94,22 @@ static void udp_rx_callback(struct simple_udp_connection *c,
                             const uint8_t *data,
                             uint16_t datalen) 
 {
-    uint32_t timestamp = tsch_get_network_uptime_ticks();
     // Converte o endereço IPv6 para string
     char addr_str[UIPLIB_IPV6_MAX_STR_LEN];
     uiplib_ipaddr_snprint(addr_str, sizeof(addr_str), sender_addr);
 
     printf("UDP Packet received from %s\n", addr_str);
 
-    mote_counter_t* scp_mote = rx_handle_mote_counters(sender_addr);
+    mote_info_t* scp_mote = rx_handle_mote_counters(sender_addr);
 
-    if (datalen == sizeof(node_metrics_packet_t)) {
+    uint64_t now = tsch_get_network_uptime_ticks();
+
+    if (datalen == sizeof(ping_packet_t)) {
+        ping_packet_t *received_pkt = (ping_packet_t *)data;
+        uint64_t rtt = now - received_pkt->send_timestamp;
+        motes[scp_mote->index].latency = rtt/2;
+    } 
+    else if (datalen == sizeof(node_metrics_packet_t)) {
         node_metrics_packet_t *metrics = (node_metrics_packet_t *)data;
         uint8_t hops = UIP_IP_BUF->ttl;
 
@@ -108,13 +125,16 @@ static void udp_rx_callback(struct simple_udp_connection *c,
         printf("    Node Bytes RX:       %u\n", metrics->bytes_rx);
         printf("    R2N Latency:         %lu ms\n", metrics->from_root_to_node_latency);
         printf("    Last LQI:            %d\n", metrics->last_lqi);
-        printf("    Last RSSI:           %d\n", metrics->last_rssi);
+        printf("    Last RSSI:           %d dBm\n", metrics->last_rssi);
         printf("    Server Sent:         %d\n", scp_mote->tx_count);
         printf("    Server Received:     %d\n", scp_mote->rx_count);
         printf("    Server Bytes RX:     %d\n", datalen);
-        printf("    N2R Latency:         %lu ms\n", (long unsigned int)(timestamp - metrics->current_time));
-        printf("    HOPS:                %d\n", hops);
-    } else {
+        printf("    N2R Latency:         %lu ms\n", (long unsigned int)(now - metrics->current_time));
+        printf("    HOPS:                %d\n", DEFAULT_TTL_HOP_COUNTER - hops);
+        printf("    Last RTT Latency:    %d ms\n", scp_mote->latency);
+        printf("    Root Time Now:       %lu ms\n", now);
+    } 
+    else {
         printf("Received bytes %d\n", datalen);
     }
 }
@@ -128,6 +148,11 @@ PROCESS_THREAD(udp_server_process, ev, data) {
 
     printf("UDP Server process started\n");
 
+    for (int i=0; i<MAX_MOTES; i++) {
+        motes[i].used = 0;
+        motes[i].latency = 0;
+    }
+
     NETSTACK_ROUTING.root_start();
     simple_udp_register(&udp_conn, UDP_SERVER_PORT, NULL, UDP_CLIENT_PORT, udp_rx_callback);
 
@@ -135,7 +160,7 @@ PROCESS_THREAD(udp_server_process, ev, data) {
 
     while(1) {
         PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
-        send_packets_to_all_nodes();
+        send_ping_to_all_nodes();
         etimer_reset(&periodic_timer);
     }
 

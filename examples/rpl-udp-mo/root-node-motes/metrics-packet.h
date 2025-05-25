@@ -25,8 +25,8 @@ typedef struct {
 //__attribute__((packed)) garante que o servidor interprete o payload exatamente como enviado, mesmo em arquiteturas onde o alignment natural difere.
 
 typedef struct {
-    unsigned int seq;
-    long unsigned int time;
-} __attribute__((packed)) server_packet_t;
+    unsigned int ping_seq;
+    long unsigned int send_timestamp; // ts do root
+} __attribute__((packed)) ping_packet_t;
 
 #endif /* METRICS_PACKET_H_ */
