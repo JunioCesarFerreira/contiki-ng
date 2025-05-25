@@ -44,7 +44,7 @@ static void print_own_link_local(void) {
     if (ll_addr != NULL) {
       char addr_str[UIPLIB_IPV6_MAX_STR_LEN];
       uiplib_ipaddr_snprint(addr_str, sizeof(addr_str), &ll_addr->ipaddr);
-      printf("Sensor Loop: My addr link-local IPv6 is %s\n", addr_str);
+      printf("Sensor IPv6 = %s\n", addr_str);
     } else {
       printf("Sensor Loop: No link-local address available\n");
     }

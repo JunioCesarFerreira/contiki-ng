@@ -83,7 +83,7 @@ static void send_ping_to_all_nodes(void) {
         if (motes[i].used) {
             motes[i].tx_count++;
             simple_udp_sendto(&udp_conn, &ping_pkt, sizeof(ping_pkt), &motes[i].addr);
-            printf("Sending ping packet seq=%u for mote %d\n", ping_pkt.ping_seq, i);
+            //printf("Sending ping packet seq=%u for mote %d\n", ping_pkt.ping_seq, i);
         }
     }
 }
@@ -96,6 +96,7 @@ static void metrics_print(char* addr_str,
                           uint16_t datalen) 
 {
 #ifdef PRINT_JSON_LOG
+    // Formata JSON
     printf("{\"node\":\"%s\", ", addr_str);
 
     printf("\"cpu_energy_mj\":%u, ", metrics->cpu_energy_mJ);
@@ -120,7 +121,7 @@ static void metrics_print(char* addr_str,
     printf("\"n2r_latency\":%lu, ", (unsigned long)(now - metrics->current_time));
     printf("\"hops\":%u, ", DEFAULT_TTL_HOP_COUNTER - hops);
     printf("\"rtt_latency\":%u, ", scp_mote->latency);
-    printf("\"root_time_now\":%lu", now);  // sem vírgula final
+    printf("\"root_time_now\":%lu", now);
 
     printf("}\n");  // finaliza o JSON
 
@@ -164,7 +165,7 @@ static void udp_rx_callback(struct simple_udp_connection *c,
     char addr_str[UIPLIB_IPV6_MAX_STR_LEN];
     uiplib_ipaddr_snprint(addr_str, sizeof(addr_str), sender_addr);
 
-    printf("UDP Packet received from %s\n", addr_str);
+    //printf("UDP Packet received from %s\n", addr_str);
 
     mote_t* scp_mote = rx_handle_mote_counters(sender_addr);
 
@@ -192,7 +193,7 @@ AUTOSTART_PROCESSES(&udp_server_process);
 PROCESS_THREAD(udp_server_process, ev, data) {
     PROCESS_BEGIN();
 
-    printf("UDP Server process started\n");
+    printf("UDP Root process started\n");
 
     for (int i=0; i<MAX_MOTES; i++) {
         motes[i].used = 0;
