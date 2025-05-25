@@ -18,6 +18,9 @@ typedef struct {
     unsigned int bytes_tx;
     unsigned int bytes_rx;
     long unsigned int from_root_to_node_latency;
+    // Conectividade
+    int last_rssi;
+    int last_lqi;
 } __attribute__((packed)) node_metrics_packet_t;
 //__attribute__((packed)) garante que o servidor interprete o payload exatamente como enviado, mesmo em arquiteturas onde o alignment natural difere.
 

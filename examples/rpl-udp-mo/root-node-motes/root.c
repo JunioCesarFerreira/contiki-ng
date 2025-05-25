@@ -94,6 +94,7 @@ static void udp_rx_callback(struct simple_udp_connection *c,
 
     if (datalen == sizeof(node_metrics_packet_t)) {
         node_metrics_packet_t *metrics = (node_metrics_packet_t *)data;
+        uint8_t hops = UIP_IP_BUF->ttl;
 
         printf("Node metrics received from %s\n", addr_str);
         printf("    CPU Energy:          %u mJ\n", metrics->cpu_energy_mJ);
@@ -106,10 +107,13 @@ static void udp_rx_callback(struct simple_udp_connection *c,
         printf("    Node Bytes TX:       %u\n", metrics->bytes_tx);
         printf("    Node Bytes RX:       %u\n", metrics->bytes_rx);
         printf("    R2N Latency:         %lu ms\n", metrics->from_root_to_node_latency);
+        printf("    Last LQI:            %d\n", metrics->last_lqi);
+        printf("    Last RSSI:           %d\n", metrics->last_rssi);
         printf("    Server Sent:         %d\n", scp_mote->tx_count);
         printf("    Server Received:     %d\n", scp_mote->rx_count);
         printf("    Server Bytes RX:     %d\n", datalen);
         printf("    N2R Latency:         %lu ms\n", (long unsigned int)(timestamp - metrics->current_time));
+        printf("    HOPS:                %d\n", hops);
     } else {
         printf("Received bytes %d\n", datalen);
     }

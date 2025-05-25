@@ -12,7 +12,10 @@
 
 #define UDP_CLIENT_PORT   8765
 #define UDP_SERVER_PORT   5678
-#define SEND_INTERVAL     (10 * CLOCK_SECOND) // Intervalo de envio de pacotes
+
+#define BASE_INTERVAL (10 * CLOCK_SECOND)
+#define JITTER        (random_rand() % (CLOCK_SECOND))
+
 #define CPU_POWER_ACTIVE  1.8                 // Consumo de energia da CPU ativa (mW)
 #define LPM_POWER         0.0545              // Consumo de energia em modo LPM (mW)
 #define RADIO_TX_POWER    17.4                // Consumo de energia no rádio (TX) (mW)
@@ -28,8 +31,10 @@ static struct simple_udp_connection udp_conn;   // Conexão UDP
 static uint64_t root_to_node_latency = 0;
 static uint32_t total_sent = 0, total_received = 0;
 static uint16_t bytes_tx = 0, bytes_rx = 0;
+static radio_value_t last_rssi = 0;
+static radio_value_t last_lqi = 0;
 
-/* Funções auxiliares */
+/* --- Funções auxiliares -------------------------------------------------------------------------------*/
 static float to_seconds(uint64_t time) {
     return (float)time / ENERGEST_SECOND;
 }
@@ -89,8 +94,12 @@ static void fill_node_metrics_packet(node_metrics_packet_t *metrics) {
     metrics->packet_number = total_sent-1;
     metrics->current_time = tsch_get_network_uptime_ticks();
     metrics->from_root_to_node_latency = root_to_node_latency;
+        
+    metrics->last_rssi = last_rssi;
+    metrics->last_lqi = last_lqi;
 }
 
+/* --- UDP RX Callback ----------------------------------------------------------------------------------*/
 static void udp_rx_callback(struct simple_udp_connection *c,
                             const uip_ipaddr_t *sender_addr,
                             uint16_t sender_port,
@@ -108,6 +117,10 @@ static void udp_rx_callback(struct simple_udp_connection *c,
 #endif // DEBUG_RX_CALLBACK
     total_received++;
     bytes_rx = datalen;
+
+    NETSTACK_RADIO.get_value(RADIO_PARAM_LAST_RSSI, &last_rssi);
+    NETSTACK_RADIO.get_value(RADIO_PARAM_LAST_LINK_QUALITY, &last_lqi);
+
     uint64_t current_time = tsch_get_network_uptime_ticks();
     
     if (datalen == sizeof(server_packet_t)) {
@@ -116,7 +129,7 @@ static void udp_rx_callback(struct simple_udp_connection *c,
     }
 }
 
-/*------------------------Processos do Contiki-NG------------------------*/
+/* --- Processos do Contiki-NG --------------------------------------------------------------------------*/
 PROCESS(udp_client_process, "UDP client");
 
 AUTOSTART_PROCESSES(&udp_client_process);
@@ -129,7 +142,7 @@ PROCESS_THREAD(udp_client_process, ev, data) {
     PROCESS_BEGIN();
     
     simple_udp_register(&udp_conn, UDP_CLIENT_PORT, NULL, UDP_SERVER_PORT, udp_rx_callback);
-    etimer_set(&periodic_timer, SEND_INTERVAL);
+    etimer_set(&periodic_timer, BASE_INTERVAL + JITTER);
     NETSTACK_MAC.on();
 
     while(1) {
@@ -138,10 +151,19 @@ PROCESS_THREAD(udp_client_process, ev, data) {
         if (NETSTACK_ROUTING.node_is_reachable() && NETSTACK_ROUTING.get_root_ipaddr(&dest_ipaddr)) {
             total_sent++;
             bytes_tx = sizeof(metrics);
+            
             energest_flush();
+
             fill_node_metrics_packet(&metrics);
+
+            energest_type_set(ENERGEST_TYPE_CPU, 0);
+            energest_type_set(ENERGEST_TYPE_LPM, 0);
+            energest_type_set(ENERGEST_TYPE_TRANSMIT, 0);
+            energest_type_set(ENERGEST_TYPE_LISTEN, 0);
+            
             simple_udp_sendto(&udp_conn, &metrics, bytes_tx, &dest_ipaddr);
             print_own_link_local();
+
 #ifdef DEBUG_PRINT_METRICS_PACKET
             print_metrics(&metrics);
 #endif // DEBUG_ENERGY_TIME_IN_SECONDS
