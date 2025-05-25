@@ -22,9 +22,9 @@
 #define RADIO_RX_POWER    19.7                // Consumo de energia no rádio (RX) (mW)
 
 /* DEBUG DEFINES */
-//#define DEBUG_ENERGY_TIME_IN_SECONDS
-//#define DEBUG_PRINT_METRICS_PACKET
-//#define DEBUG_RX_CALLBACK
+//#define DEBUG_ENERGY_TIME_IN_SECONDS // Habilite este flag para depurar temporizadores de medição de consumo de energia
+//#define DEBUG_PRINT_METRICS_PACKET // Habilite este flag para depurar pacote de métricas
+//#define DEBUG_RX_CALLBACK // Habilite este flag para debugar recepção de dados
 
 /* Variáveis Globais */
 static struct simple_udp_connection udp_conn;   // Conexão UDP
@@ -44,10 +44,17 @@ static void print_own_link_local(void) {
     if (ll_addr != NULL) {
       char addr_str[UIPLIB_IPV6_MAX_STR_LEN];
       uiplib_ipaddr_snprint(addr_str, sizeof(addr_str), &ll_addr->ipaddr);
-      printf("My addr link-local IPv6: %s\n", addr_str);
+      printf("Sensor Loop: My addr link-local IPv6 is %s\n", addr_str);
     } else {
-      printf("No link-local address available\n");
+      printf("Sensor Loop: No link-local address available\n");
     }
+}
+
+static void energest_clear_reg(void) {
+    energest_type_set(ENERGEST_TYPE_CPU, 0);
+    energest_type_set(ENERGEST_TYPE_LPM, 0);
+    energest_type_set(ENERGEST_TYPE_TRANSMIT, 0);
+    energest_type_set(ENERGEST_TYPE_LISTEN, 0);
 }
 
 #ifdef DEBUG_PRINT_METRICS_PACKET
@@ -158,10 +165,7 @@ PROCESS_THREAD(udp_client_process, ev, data) {
 
             fill_node_metrics_packet(&metrics);
 
-            energest_type_set(ENERGEST_TYPE_CPU, 0);
-            energest_type_set(ENERGEST_TYPE_LPM, 0);
-            energest_type_set(ENERGEST_TYPE_TRANSMIT, 0);
-            energest_type_set(ENERGEST_TYPE_LISTEN, 0);
+            energest_clear_reg();
             
             simple_udp_sendto(&udp_conn, &metrics, bytes_tx, &dest_ipaddr);
             print_own_link_local();

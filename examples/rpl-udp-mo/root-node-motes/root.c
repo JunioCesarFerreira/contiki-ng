@@ -20,6 +20,9 @@
  */
 #define DEFAULT_TTL_HOP_COUNTER 64 
 
+#define PRINT_JSON_LOG // Habilite este flag para realizar print de JSON de métricas, util para obter dados analíticos da simulação.
+//#define PRINT_TAB_LOG // Habilite este flag para realizar print de Tabular de métricas, util para depuração e acompanhamento manual.
+
 static struct etimer periodic_timer;
 static ping_packet_t ping_pkt = { 0, 0 };
 
@@ -32,19 +35,19 @@ typedef struct {
     uint32_t latency; 
     uint16_t index;
     char used;
-} mote_info_t;
+} mote_t;
 
-static mote_info_t motes[MAX_MOTES];
+static mote_t motes[MAX_MOTES];
 
 static int compare_ipaddr(const uip_ipaddr_t *a, const uip_ipaddr_t *b) {
     return memcmp(a, b, sizeof(uip_ipaddr_t));
 }
 
-static mote_info_t* rx_handle_mote_counters(const uip_ipaddr_t *sender_addr) {
+static mote_t* rx_handle_mote_counters(const uip_ipaddr_t *sender_addr) {
     /* Procura na lista se o mote já possui um contador.
     Se não encontrar, aloca um novo slot. */
     uint8_t found = 0;
-    mote_info_t* ptr = NULL;
+    mote_t* ptr = NULL;
     for (int i = 0; i < MAX_MOTES; i++) {
         if (motes[i].used) {
             if (compare_ipaddr(sender_addr, &motes[i].addr) == 0) {
@@ -85,6 +88,69 @@ static void send_ping_to_all_nodes(void) {
     }
 }
 
+static void metrics_print(char* addr_str, 
+                          node_metrics_packet_t* metrics,
+                          mote_t* scp_mote,
+                          uint64_t now,
+                          uint8_t hops,
+                          uint16_t datalen) 
+{
+#ifdef PRINT_JSON_LOG
+    printf("{\"node\":\"%s\", ", addr_str);
+
+    printf("\"cpu_energy_mj\":%u, ", metrics->cpu_energy_mJ);
+    printf("\"lpm_energy_mj\":%u, ", metrics->lpm_energy_mJ);
+    printf("\"radio_tx_energy_mj\":%u, ", metrics->radio_tx_energy_mJ);
+    printf("\"radio_rx_energy_mj\":%u, ", metrics->radio_rx_energy_mJ);
+
+    printf("\"node_time\":%lu, ", metrics->current_time);
+    printf("\"total_sent\":%u, ", metrics->total_sent);
+    printf("\"total_received\":%u, ", metrics->total_received);
+    printf("\"bytes_tx\":%u, ", metrics->bytes_tx);
+    printf("\"bytes_rx\":%u, ", metrics->bytes_rx);
+
+    printf("\"r2n_latency\":%lu, ", metrics->from_root_to_node_latency);
+    printf("\"lqi\":%u, ", metrics->last_lqi);
+    printf("\"rssi\":%d, ", metrics->last_rssi);
+
+    printf("\"server_sent\":%u, ", scp_mote->tx_count);
+    printf("\"server_received\":%u, ", scp_mote->rx_count);
+    printf("\"server_bytes_rx\":%u, ", datalen);
+
+    printf("\"n2r_latency\":%lu, ", (unsigned long)(now - metrics->current_time));
+    printf("\"hops\":%u, ", DEFAULT_TTL_HOP_COUNTER - hops);
+    printf("\"rtt_latency\":%u, ", scp_mote->latency);
+    printf("\"root_time_now\":%lu", now);  // sem vírgula final
+
+    printf("}\n");  // finaliza o JSON
+
+#endif // PRINT_JSON_LOG
+
+#ifdef PRINT_TAB_LOG
+    printf("Node metrics received from %s\n", addr_str);
+    printf("    CPU Energy:          %u mJ\n", metrics->cpu_energy_mJ);
+    printf("    LPM Energy:          %u mJ\n", metrics->lpm_energy_mJ);
+    printf("    Radio TX Energy:     %u mJ\n", metrics->radio_tx_energy_mJ);
+    printf("    Radio RX Energy:     %u mJ\n", metrics->radio_rx_energy_mJ);
+    printf("    Node Time:           %lu ms\n", metrics->current_time);
+    printf("    Node Total Sent:     %u\n", metrics->total_sent);
+    printf("    Node Total Received: %u\n", metrics->total_received);
+    printf("    Node Bytes TX:       %u\n", metrics->bytes_tx);
+    printf("    Node Bytes RX:       %u\n", metrics->bytes_rx);
+    printf("    R2N Latency:         %lu ms\n", metrics->from_root_to_node_latency);
+    printf("    Last LQI:            %d\n", metrics->last_lqi);
+    printf("    Last RSSI:           %d dBm\n", metrics->last_rssi);
+    printf("    Server Sent:         %d\n", scp_mote->tx_count);
+    printf("    Server Received:     %d\n", scp_mote->rx_count);
+    printf("    Server Bytes RX:     %d\n", datalen);
+    printf("    N2R Latency:         %lu ms\n", (long unsigned int)(now - metrics->current_time));
+    printf("    Hops Count:          %d\n", DEFAULT_TTL_HOP_COUNTER - hops);
+    printf("    Last RTT Latency:    %d ms\n", scp_mote->latency);
+    printf("    Root Time Now:       %lu ms\n", now);
+#endif // PRINT_TAB_LOG
+
+}
+
 
 static void udp_rx_callback(struct simple_udp_connection *c,
                             const uip_ipaddr_t *sender_addr,
@@ -100,7 +166,7 @@ static void udp_rx_callback(struct simple_udp_connection *c,
 
     printf("UDP Packet received from %s\n", addr_str);
 
-    mote_info_t* scp_mote = rx_handle_mote_counters(sender_addr);
+    mote_t* scp_mote = rx_handle_mote_counters(sender_addr);
 
     uint64_t now = tsch_get_network_uptime_ticks();
 
@@ -112,27 +178,7 @@ static void udp_rx_callback(struct simple_udp_connection *c,
     else if (datalen == sizeof(node_metrics_packet_t)) {
         node_metrics_packet_t *metrics = (node_metrics_packet_t *)data;
         uint8_t hops = UIP_IP_BUF->ttl;
-
-        printf("Node metrics received from %s\n", addr_str);
-        printf("    CPU Energy:          %u mJ\n", metrics->cpu_energy_mJ);
-        printf("    LPM Energy:          %u mJ\n", metrics->lpm_energy_mJ);
-        printf("    Radio TX Energy:     %u mJ\n", metrics->radio_tx_energy_mJ);
-        printf("    Radio RX Energy:     %u mJ\n", metrics->radio_rx_energy_mJ);
-        printf("    Node Time:           %lu ms\n", metrics->current_time);
-        printf("    Node Total Sent:     %u\n", metrics->total_sent);
-        printf("    Node Total Received: %u\n", metrics->total_received);
-        printf("    Node Bytes TX:       %u\n", metrics->bytes_tx);
-        printf("    Node Bytes RX:       %u\n", metrics->bytes_rx);
-        printf("    R2N Latency:         %lu ms\n", metrics->from_root_to_node_latency);
-        printf("    Last LQI:            %d\n", metrics->last_lqi);
-        printf("    Last RSSI:           %d dBm\n", metrics->last_rssi);
-        printf("    Server Sent:         %d\n", scp_mote->tx_count);
-        printf("    Server Received:     %d\n", scp_mote->rx_count);
-        printf("    Server Bytes RX:     %d\n", datalen);
-        printf("    N2R Latency:         %lu ms\n", (long unsigned int)(now - metrics->current_time));
-        printf("    HOPS:                %d\n", DEFAULT_TTL_HOP_COUNTER - hops);
-        printf("    Last RTT Latency:    %d ms\n", scp_mote->latency);
-        printf("    Root Time Now:       %lu ms\n", now);
+        metrics_print(addr_str, metrics, scp_mote, now, hops, datalen);
     } 
     else {
         printf("Received bytes %d\n", datalen);
