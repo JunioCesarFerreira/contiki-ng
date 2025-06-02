@@ -106,7 +106,10 @@ static void send_ping_to_all_nodes(void) {
         if (motes[i].used) {
             motes[i].tx_count++;
             simple_udp_sendto(&udp_conn, &ping_pkt, sizeof(ping_pkt), &motes[i].addr);
-            //printf("Sending ping packet seq=%u for mote %d\n", ping_pkt.ping_seq, i);
+            // Debug
+            //char addr_str[UIPLIB_IPV6_MAX_STR_LEN]; 
+            //uiplib_ipaddr_snprint(addr_str, sizeof(addr_str), &motes[i].addr);
+            //printf("Sending ping packet seq=%u for mote[%d] %s\n", ping_pkt.ping_seq, i, addr_str);
         }
     }
 }
@@ -125,6 +128,7 @@ static void metrics_print(char* addr_str,
 {
 #ifdef PRINT_JSON_LOG
     printf("{\"node\":\"%s\", ", addr_str);
+    printf("\"loop_counter\":%lu", metrics->loop_counter);
 
     printf("\"cpu_energy_mj\":%u, ", metrics->cpu_energy_mJ);
     printf("\"lpm_energy_mj\":%u, ", metrics->lpm_energy_mJ);

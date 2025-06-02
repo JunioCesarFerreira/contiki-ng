@@ -20,6 +20,9 @@
  * to analyze the performance and energy profile of each node.
  */
 typedef struct {
+    /** Node loop counter */
+    unsigned long int loop_counter;
+    
     /** Sequence number of the packet */
     unsigned int packet_number;
 

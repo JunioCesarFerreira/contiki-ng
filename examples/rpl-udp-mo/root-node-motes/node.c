@@ -53,6 +53,8 @@ static uint16_t bytes_tx = 0, bytes_rx = 0;
 static radio_value_t last_rssi = 0;
 static radio_value_t last_lqi = 0;
 
+static uint64_t loop_counter = 0;
+
 //------------------------ Utility Functions ----------------------------------
 
 /**
@@ -140,6 +142,8 @@ static void fill_node_metrics_packet(node_metrics_packet_t *metrics) {
 
     metrics->last_rssi = last_rssi;
     metrics->last_lqi  = last_lqi;
+
+    metrics->loop_counter = loop_counter;
 }
 
 //------------------------ UDP Receive Callback -------------------------------
@@ -207,10 +211,13 @@ PROCESS_THREAD(udp_client_process, ev, data)
     NETSTACK_MAC.on();
 
     while(1) {
+        loop_counter++;
         PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
 
-        if (NETSTACK_ROUTING.node_is_reachable() &&
-            NETSTACK_ROUTING.get_root_ipaddr(&dest_ipaddr)) {
+        int reachable = NETSTACK_ROUTING.node_is_reachable();
+        int get_root = NETSTACK_ROUTING.get_root_ipaddr(&dest_ipaddr);
+        //printf("DEBUG: reachable=%d and get_root=%d\n", reachable, get_root);
+        if ( reachable && get_root) {
 
             total_sent++;
             bytes_tx = sizeof(metrics);
